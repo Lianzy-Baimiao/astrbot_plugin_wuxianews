@@ -4,5 +4,23 @@
     "type": "list",
     "default": [],
     "hint": "也可在群里发「天刀新闻推送 开」自动登记本群。留空则不自动推送"
+  },
+  "shot_enabled": {
+    "description": "公告图使用手机网页整页截图",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后按手机访问官网的样式截图；关闭或截图失败时回退为深色卡片图"
+  },
+  "shot_max_height": {
+    "description": "截图最大高度（CSS 像素，0 = 不截断）",
+    "type": "int",
+    "default": 5000,
+    "hint": "超长公告（如月度维护公告整页约 24000px）会截取前面这么高，文字消息里提示看链接"
+  },
+  "shot_quality": {
+    "description": "截图 JPEG 质量（1-100）",
+    "type": "int",
+    "default": 88,
+    "hint": "越低越省流量。成图超过 2.5MB 时会自动继续降质/缩放"
   }
 }

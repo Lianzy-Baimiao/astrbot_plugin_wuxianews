@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-"""天刀公告插件（AstrBot）。
+"""天刀公告插件（AstrBot）。作者：lianzy
 
-移植自 ZeroBot-Plugin 的 plugin/wuxianews
-（https://github.com/FloatTech/ZeroBot-Plugin），逻辑与原版一致：
 公告列表 / 最新公告 / 最新公告改（按群去重）/ 重置推送记录，
-并新增「天刀新闻推送 开/关/状态/测试」实现定时自动推送（每 5 分钟检查）。
+以及「天刀新闻推送 开/关/状态/测试」定时自动推送（每 5 分钟检查）。
 """
 
 import asyncio
@@ -27,6 +25,8 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
+from wxnews import screenshot
+
 NEWS_URL = "http://wuxia.qq.com/webplat/info/news_version3/5012/5013/5014/5016/m3485/list_1.shtml"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
@@ -38,7 +38,8 @@ _ITEM_RE = re.compile(
     re.S,
 )
 _HTML_TAG_RE = re.compile(r"<[^>]*>")
-_CONTENT_RE = re.compile(r'(?s)<div[^>]*class="artws"[^>]*>(.*?)</div>')
+# 正文容器到「相关新闻」之间即全文；不能用非贪婪 </div>，正文里有嵌套 div 会被截断
+_CONTENT_RE = re.compile(r'(?s)<div[^>]*class="artws"[^>]*>(.*?)<dl class="morenews"')
 _BLOCK_RE = re.compile(r'(?s)<div[^>]*class="fabric-editor-block-mark[^"]*"[^>]*>(.*?)</div>')
 _P_RE = re.compile(r"(?s)<p[^>]*>(.*?)</p>")
 
@@ -235,6 +236,7 @@ class WuxiaNewsPlugin(Star):
         self._limit = _RateLimit(3)
         self._last_check: float = 0
         self._scheduler_task: asyncio.Task | None = None
+        screenshot.configure(_data_dir())
         logger.info("天刀公告插件初始化完成")
 
     # ---------------- 工具 ----------------
@@ -387,14 +389,10 @@ class WuxiaNewsPlugin(Star):
             )
             if summary:
                 text += f"\n\n{summary}"
-            results.append(event.plain_result(text))
-            card = None
-            try:
-                card = await self._render_card(it, summary)
-            except Exception as e:  # noqa: BLE001
-                logger.warning("公告卡片生成失败: %s", e)
-            if card:
-                results.append(event.image_result(card))
+            img, hint = await self._news_image(it, summary)
+            results.append(event.plain_result(text + hint))
+            if img:
+                results.append(event.image_result(img))
         except Exception as e:  # noqa: BLE001
             logger.warning("最新公告获取失败: %s", e)
             if force:
@@ -457,7 +455,43 @@ class WuxiaNewsPlugin(Star):
         clear_pushed(key)
         yield event.plain_result("已重置本群的公告推送记录")
 
-    # ---------------- 公告卡片（html_render 渲染，深色风格） ----------------
+    # ---------------- 公告图（手机网页截图，失败回退卡片） ----------------
+
+    async def _news_image(self, it: dict, summary: str) -> tuple[str | None, str]:
+        """返回 (图片路径/URL, 追加到文字消息的提示)。
+
+        首选「手机 UA + 手机视口打开该网址」的整页截图，与手机看官网一致；
+        Playwright 不可用或截图失败时回退到 templates/news.html 卡片图。
+        """
+        note = ""
+        if self.config.get("shot_enabled", True):
+            try:
+                path, truncated = await screenshot.shot_mobile(
+                    it["url"],
+                    max_height=int(
+                        self.config.get("shot_max_height", screenshot.MAX_HEIGHT)
+                    ),
+                    quality=int(self.config.get("shot_quality", screenshot.JPEG_QUALITY)),
+                )
+                screenshot.clean_shots()
+                if truncated:
+                    note = "\n\n（公告较长，图片仅截取前部分，完整内容见链接）"
+                return path, note
+            except RuntimeError as e:
+                if str(e) == "DOWNLOADING":
+                    logger.info("浏览器组件下载中，本次先用卡片图")
+                    note = "\n\n（浏览器组件正在后台下载，稍后公告图会自动切换为网页截图）"
+                else:
+                    logger.warning("公告网页截图失败: %s", e)
+            except Exception as e:  # noqa: BLE001
+                logger.warning("公告网页截图失败: %s", e)
+        try:
+            return await self._render_card(it, summary), note
+        except Exception as e:  # noqa: BLE001
+            logger.warning("公告卡片生成失败: %s", e)
+            return None, note
+
+    # ---------------- 公告卡片（html_render 渲染，深色风格，截图不可用时的兜底） ----------------
 
     @staticmethod
     def _measure_wrap_lines(
@@ -550,17 +584,14 @@ class WuxiaNewsPlugin(Star):
         )
         if summary:
             text += f"\n\n{summary}"
-        card = None
-        try:
-            card = await self._render_card(it, summary)
-        except Exception as e:  # noqa: BLE001
-            logger.warning("定时公告卡片生成失败: %s", e)
+        img, hint = await self._news_image(it, summary)
+        text += hint
         for umo in targets:
             try:
                 mark_pushed(f"push:{umo}", it["title"])
                 await self._send_text_to(umo, text)
-                if card:
-                    await self._send_img_to(umo, card)
+                if img:
+                    await self._send_img_to(umo, img)
             except Exception as e:  # noqa: BLE001
                 logger.warning("定时公告推送失败 %s: %s", umo, e)
 

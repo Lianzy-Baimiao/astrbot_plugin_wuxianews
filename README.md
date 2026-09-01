@@ -1,6 +1,6 @@
 # astrbot_plugin_wuxianews
 
-天涯明月刀公告插件（AstrBot）。移植自 ZeroBot-Plugin 的 `plugin/wuxianews`，逻辑与原版一致，并新增定时自动推送。
+天涯明月刀公告插件（AstrBot）：公告列表、最新公告（手机网页整页截图）、定时自动推送。
 
 作者：lianzy
 
@@ -9,28 +9,33 @@
 | 指令 | 说明 |
 |---|---|
 | `公告列表` | 最近 10 条天刀公告（类型/标题/时间/链接） |
-| `最新公告` | 最新一条公告 + 详情页内容摘要（含深色风格卡片图） |
+| `最新公告` | 最新一条公告：文字（类型/标题/日期/链接/摘要）+ 手机网页整页截图 |
 | `最新公告改` | 有新公告才返回（按群去重） |
 | `天刀新闻推送 开/关/状态/测试` | 本群开启后**每 5 分钟检查**，有更新自动推送（开/关/测试需管理员） |
 | `重置公告推送` | 清空本群推送记录（需管理员） |
 
 ## 配置（WebUI 插件配置页）
 
-- `news_groups`：定时推送的群（填**群号**或 unified_msg_origin，可多个）。也可以在群里发 `天刀新闻推送 开` 自动登记本群，无需手动配置。
+| 配置项 | 默认 | 说明 |
+|---|---|---|
+| `news_groups` | `[]` | 定时推送的群（填**群号**或 unified_msg_origin，可多个）。也可以在群里发 `天刀新闻推送 开` 自动登记本群 |
+| `shot_enabled` | `true` | 公告图用手机网页整页截图；关掉则回到深色卡片图 |
+| `shot_max_height` | `5000` | 截图最大高度（CSS 像素，0 = 不截断）。超长公告截取前面部分，文字消息里提示看链接 |
+| `shot_quality` | `88` | 截图 JPEG 质量。成图超过 2.5MB 会自动继续降质/缩放 |
 
 ## 数据存储
 
-推送去重记录存于 `data/plugin_data/astrbot_plugin_wuxianews/push_record.json`。
+- 推送去重记录：`data/plugin_data/astrbot_plugin_wuxianews/push_record.json`
+- 摘要缓存（24h）：同目录 `summary_cache.json`
+- 网页截图缓存：同目录 `news_shots/`（按 URL 哈希命名，保留最近 20 张 + 7 天兜底）
 
 ## 说明
 
 - 公告数据源：`wuxia.qq.com`（GBK 编码，自动转码解析）
-- **卡片图**：由 AstrBot 内置 html_render 渲染深色风格公告卡片（模板 `templates/news.html`）
+- **公告图**：Playwright 以 iPhone UA + 390×844 手机视口打开公告网址整页截图，版式与手机访问官网一致。浏览器组件首次使用时自动后台下载（约 150MB），下载期间/失败时回退为 `templates/news.html` 渲染的深色卡片图
+- 截图时**关闭 JavaScript**：天刀公告页 head 里有 `window.location.href` 整页跳转脚本，开着 JS 会被劫持到活动页；正文配图是普通 `<img src>`，关 JS 不影响加载
+- 少数「跳转型公告」（正文为空，手机上点进去直接跳活动页）会自动识别并改截那个活动页，并遮掉腾讯游戏活动页的扫码登录弹窗
 - 管理指令（开/关/测试/重置）需要 AstrBot 的 `admins_id`（WebUI 配置，非 QQ 群管理）
-
-## 灵感来源
-
-移植自 [ZeroBot-Plugin](https://github.com/FloatTech/ZeroBot-Plugin) 的 `plugin/wuxianews`。原项目采用 MIT 许可证。
 
 ## License
 
