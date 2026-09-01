@@ -459,6 +459,38 @@ class WuxiaNewsPlugin(Star):
 
     # ---------------- 公告卡片（html_render 渲染，深色风格） ----------------
 
+    @staticmethod
+    def _measure_wrap_lines(
+        text: str, content_px: float, font_px: float, ascii_ratio: float = 0.55
+    ) -> int:
+        """按 CSS 像素估算折行后的总行数（CJK 一字≈font_px，ASCII≈font_px*0.55）。"""
+        if not text:
+            return 0
+        import math
+
+        lines = 0
+        for para in str(text).split("\n"):
+            w = 0.0
+            for ch in para:
+                w += font_px if ord(ch) > 127 else font_px * ascii_ratio
+            lines += max(1, math.ceil(w / content_px))
+        return lines
+
+    def _card_clip(self, it: dict, summary: str) -> dict:
+        """估算卡片内容高度并构造 clip（t2i 端点固定输出 800x720，需按内容裁剪）。
+
+        与 templates/news.html 版式逐项对应（2026-09-01 实测标定）：
+        brand 57 + content pad 26 + tag 24 + title(margin12+行40.6) + meta(10+18)
+        + desc(margin18+行30.4) + divider 21 + link 63 + foot 33 + page pad 14。
+        底部留 20px 同色余量（深色底不可见），宁多勿少防切字。
+        """
+        title_lines = self._measure_wrap_lines(it.get("title", ""), 736, 28)
+        h = 57 + 26 + 24 + 12 + title_lines * 40.6 + 10 + 18 + 21 + 63 + 33 + 14
+        if summary:
+            desc_lines = self._measure_wrap_lines(summary, 736, 16)
+            h += 18 + desc_lines * 30.4
+        return {"x": 0, "y": 0, "width": 800, "height": min(int(h) + 20, 720)}
+
     async def _render_card(self, it: dict, summary: str) -> str:
         """渲染公告卡片图片（对齐饰品排行深色风格），返回图片 URL。"""
         tmpl = _TEMPLATE_DIR / "news.html"
@@ -473,7 +505,7 @@ class WuxiaNewsPlugin(Star):
                 "url": it["url"],
                 "desc": summary,
             },
-            options={"type": "png"},
+            options={"type": "png", "clip": self._card_clip(it, summary)},
         )
 
     # ---------------- 定时推送 ----------------
