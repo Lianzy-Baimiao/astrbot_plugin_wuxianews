@@ -1,0 +1,8 @@
+{
+  "news_groups": {
+    "description": "天刀公告定时推送的群（填群号或 unified_msg_origin，可多个）",
+    "type": "list",
+    "default": [],
+    "hint": "也可在群里发「天刀新闻推送 开」自动登记本群。留空则不自动推送"
+  }
+}

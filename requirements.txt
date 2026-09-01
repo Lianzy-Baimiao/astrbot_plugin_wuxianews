@@ -1,0 +1,3 @@
+httpx
+playwright>=1.40
+Pillow
