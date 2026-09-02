@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """天刀公告插件（AstrBot）。作者：lianzy
 
-公告列表 / 最新公告 / 最新公告改（按群去重）/ 重置推送记录，
+天刀公告列表 / 天刀最新公告 / 天刀最新公告改（按群去重）/ 天刀重置公告推送，
 以及「天刀新闻推送 开/关/状态/测试」定时自动推送（每 5 分钟检查）。
+
+所有指令统一以「天刀」开头，避免与其它插件的裸词指令冲突。
 """
 
 import asyncio
@@ -43,11 +45,11 @@ _CONTENT_RE = re.compile(r'(?s)<div[^>]*class="artws"[^>]*>(.*?)<dl class="moren
 _BLOCK_RE = re.compile(r'(?s)<div[^>]*class="fabric-editor-block-mark[^"]*"[^>]*>(.*?)</div>')
 _P_RE = re.compile(r"(?s)<p[^>]*>(.*?)</p>")
 
-T_LIST = r"^公告列表$"
-T_LATEST = r"^最新公告$"
-T_LATEST_DEDUP = r"^最新公告改$"
+T_LIST = r"^天刀公告列表$"
+T_LATEST = r"^天刀最新公告$"
+T_LATEST_DEDUP = r"^天刀最新公告改$"
 T_PUSH = r"^天刀新闻推送[\s:：]*(开|关|状态|测试)?$"
-T_RESET = r"^重置公告推送$"
+T_RESET = r"^天刀重置公告推送$"
 
 _RE_CACHE: dict[str, re.Pattern] = {}
 
@@ -333,7 +335,7 @@ class WuxiaNewsPlugin(Star):
 
     @filter.regex(T_LIST)
     async def list_cmd(self, event: AstrMessageEvent):
-        '''公告列表：最近 10 条天刀公告'''
+        '''天刀公告列表：最近 10 条天刀公告'''
         if not self._limit.ok(self._group_key(event)):
             yield event.plain_result("查询太频繁，请稍后再试")
             return
@@ -353,7 +355,7 @@ class WuxiaNewsPlugin(Star):
 
     @filter.regex(T_LATEST)
     async def latest_cmd(self, event: AstrMessageEvent):
-        '''最新公告：最新一条 + 内容摘要'''
+        '''天刀最新公告：最新一条 + 内容摘要'''
         if not self._limit.ok(self._group_key(event)):
             yield event.plain_result("查询太频繁，请稍后再试")
             return
@@ -362,7 +364,7 @@ class WuxiaNewsPlugin(Star):
 
     @filter.regex(T_LATEST_DEDUP)
     async def latest_dedup_cmd(self, event: AstrMessageEvent):
-        '''最新公告改：有新公告才返回（按群去重）'''
+        '''天刀最新公告改：有新公告才返回（按群去重）'''
         if not self._limit.ok(self._group_key(event)):
             yield event.plain_result("查询太频繁，请稍后再试")
             return
@@ -444,7 +446,7 @@ class WuxiaNewsPlugin(Star):
 
     @filter.regex(T_RESET)
     async def reset_cmd(self, event: AstrMessageEvent):
-        '''重置公告推送：清空本群推送记录（需管理员）'''
+        '''天刀重置公告推送：清空本群推送记录（需管理员）'''
         if not self._group_id(event):
             yield event.plain_result("该命令仅支持在群聊中使用")
             return
