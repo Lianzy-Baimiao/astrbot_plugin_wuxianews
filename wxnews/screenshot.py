@@ -16,14 +16,13 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import logging
 import re
 import sys
 import time
 from pathlib import Path
 from urllib.parse import urljoin
 
-logger = logging.getLogger("astrbot_plugin_wuxianews.screenshot")
+from astrbot.api import logger
 
 IPHONE_UA = (
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
