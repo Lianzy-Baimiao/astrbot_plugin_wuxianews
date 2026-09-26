@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>天刀公告</title>
+<!--
+  显式声明桥接 SDK：AstrBot 会把这个 src 重写成带 asset_token 的真实地址。
+  整个页面里除这一处外不要再出现那个脚本地址（连注释都不行），否则自动注入会失效。
+-->
+<script src="/api/plugin/page/bridge-sdk.js"></script>
+<style>
+:root {
+  --bg: #f5f7fa; --card: #ffffff; --border: #e5e7eb; --text: #1f2937;
+  --text2: #6b7280; --text3: #9ca3af; --accent: #3b82f6;
+  --accent-soft: rgba(59, 130, 246, 0.1); --danger: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.1); --ok: #22c55e; --ok-soft: rgba(34, 197, 94, 0.12);
+  --warn: #f59e0b; --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --radius: 10px;
+}
+html[data-theme="dark"] {
+  --bg: #17181c; --card: #1f2126; --border: #32353c; --text: #e5e7eb;
+  --text2: #9ca3af; --text3: #6b7280; --accent: #60a5fa;
+  --accent-soft: rgba(96, 165, 250, 0.14); --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.14); --ok: #4ade80; --ok-soft: rgba(74, 222, 128, 0.14);
+  --warn: #fbbf24; --shadow: none;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 16px; background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 14px; line-height: 1.6;
+}
+.wrap { max-width: 1180px; margin: 0 auto; }
+.topbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.topbar h1 { font-size: 18px; margin: 0; font-weight: 600; }
+.pill { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--ok-soft); color: var(--ok); }
+.pill.off { background: var(--danger-soft); color: var(--danger); }
+.pill.warn { background: rgba(245, 158, 11, 0.14); color: var(--warn); }
+.spacer { flex: 1 1 auto; }
+.stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.stat { flex: 1 1 130px; background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 14px; box-shadow: var(--shadow); }
+.stat .n { font-size: 19px; font-weight: 600; }
+.stat .l { font-size: 12px; color: var(--text2); }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 14px; margin-bottom: 14px; }
+.card h2 { font-size: 15px; margin: 0 0 8px; font-weight: 600; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.field.grow { flex: 1 1 200px; min-width: 0; }
+label { font-size: 12px; color: var(--text2); }
+input[type="text"], select, textarea {
+  font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; width: 100%; outline: none;
+}
+input[type="text"]:focus, select:focus { border-color: var(--accent); }
+input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
+button { font: inherit; cursor: pointer; border-radius: 8px; padding: 7px 14px;
+  border: 1px solid var(--border); background: var(--card); color: var(--text); white-space: nowrap; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.danger { color: var(--danger); border-color: var(--danger-soft); }
+button.link { border: none; background: none; color: var(--accent); padding: 2px 4px; }
+button.link.danger { color: var(--danger); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+.hint { font-size: 12px; color: var(--text2); margin: 6px 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+th { font-size: 12px; color: var(--text2); font-weight: 500; white-space: nowrap; }
+tbody tr:hover { background: var(--accent-soft); }
+td.acts, th.acts { text-align: right; white-space: nowrap; }
+.tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent); }
+.tag.off { background: var(--danger-soft); color: var(--danger); }
+.tag.warn { background: rgba(245, 158, 11, .16); color: var(--warn); }
+.empty { text-align: center; color: var(--text2); padding: 18px; }
+.list { max-height: 240px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+.list-item { display: flex; gap: 10px; align-items: center; padding: 8px 10px;
+  border-bottom: 1px solid var(--border); }
+.list-item:last-child { border-bottom: none; }
+.list-item .nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gallery { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.thumb { width: 150px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg); }
+.thumb img { width: 100%; height: 190px; object-fit: cover; display: block; }
+.thumb .cap { font-size: 11px; color: var(--text2); padding: 6px 8px; word-break: break-all; }
+.pick-list { max-height: 46vh; overflow: auto; margin-top: 10px;
+  border: 1px solid var(--border); border-radius: 8px; }
+.pick-item { display: flex; gap: 10px; align-items: center; padding: 9px 12px;
+  cursor: pointer; border-bottom: 1px solid var(--border); }
+.pick-item:last-child { border-bottom: none; }
+.pick-item:hover { background: var(--accent-soft); }
+.pick-item .nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-item .sub { color: var(--text2); font-size: 12px; white-space: nowrap; }
+.modal-mask { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); display: flex;
+  align-items: center; justify-content: center; padding: 18px; z-index: 50; }
+.modal-mask[hidden] { display: none; }
+.modal { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px; width: 100%; max-width: 620px; max-height: 88vh; overflow: auto; box-shadow: var(--shadow); }
+.modal h2 { margin-top: 0; }
+.modal-foot { display: flex; gap: 10px; align-items: center; margin-top: 14px; }
+.toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(20px);
+  background: #111827; color: #fff; padding: 9px 16px; border-radius: 8px; font-size: 13px;
+  opacity: 0; pointer-events: none; transition: all .2s ease; z-index: 99; max-width: 80vw; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.err { background: #b91c1c; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <h1>天刀公告</h1>
+    <span class="pill" id="runPill">加载中…</span>
+    <span class="spacer"></span>
+    <button id="btnPickGroup">选择群…</button>
+    <button id="btnReload">刷新</button>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="card">
+    <h2>推送群</h2>
+    <p class="hint">
+      勾选要自动推送天刀公告的群（每 5 分钟检查，有更新才推），保存后立即生效，
+      与在群里发「天刀新闻推送 开」等价。
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:56px">推送</th><th>群</th><th>群号</th>
+          <th>上次推送的公告</th><th class="acts">操作</th>
+        </tr></thead>
+        <tbody id="groupBody"></tbody>
+      </table>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button id="btnSaveGroups" class="primary">保存推送群</button>
+      <button id="btnPushAll">立刻检查并推送（全部群）</button>
+      <span class="hint" id="saveHint"></span>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <h2>推送记录</h2>
+      <p class="hint">记录每个群上次推过的公告标题，用来去重。重置后下次检查会重推最新公告。</p>
+      <div class="list" id="recordList"></div>
+      <div class="row" style="margin-top:10px">
+        <button id="btnResetAll" class="danger">清空全部记录</button>
+        <span class="spacer"></span>
+        <span class="hint" id="recordHint"></span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>公告图参数</h2>
+      <div class="field">
+        <label for="cfgShotEnabled">公告图使用手机网页整页截图</label>
+        <select id="cfgShotEnabled">
+          <option value="1">开启（与手机看官网一致）</option>
+          <option value="0">关闭（用深色卡片图）</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="cfgShotHeight">截图最大高度（CSS 像素，0 = 不截断）</label>
+        <input type="text" id="cfgShotHeight" placeholder="5000">
+      </div>
+      <div class="field">
+        <label for="cfgShotQuality">截图 JPEG 质量（1-100）</label>
+        <input type="text" id="cfgShotQuality" placeholder="88">
+      </div>
+      <div class="row">
+        <button id="btnSaveConfig" class="primary">保存参数</button>
+        <span class="hint" id="cfgHint"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>截图缓存</h2>
+    <div class="row">
+      <span class="hint" id="shotHint"></span>
+      <span class="spacer"></span>
+      <button id="btnClearCache">清空摘要缓存</button>
+      <button id="btnClearShots" class="danger">清空截图</button>
+    </div>
+    <div class="gallery" id="gallery"></div>
+  </div>
+</div>
+
+<div class="modal-mask" id="pickMask" hidden>
+  <div class="modal">
+    <h2>选择推送群</h2>
+    <div class="row">
+      <div class="field grow">
+        <label for="pickSearch">搜索群名 / 群号</label>
+        <input type="text" id="pickSearch" placeholder="例：天刀 或 339466990">
+      </div>
+      <button id="btnPickRefresh">刷新群列表</button>
+    </div>
+    <div class="pick-list" id="pickList"></div>
+    <div class="modal-foot">
+      <span class="hint" id="pickHint" style="margin-right:auto"></span>
+      <button id="btnPickApply" class="primary">用勾选结果替换名单</button>
+      <button id="pickClose">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="testMask" hidden>
+  <div class="modal">
+    <h2>测试推送</h2>
+    <p class="hint" id="testTarget"></p>
+    <div class="row">
+      <label><input type="checkbox" id="testForce"> 强制重发（忽略「已推送过」的记录）</label>
+    </div>
+    <div class="modal-foot">
+      <span class="hint" id="testResult" style="margin-right:auto"></span>
+      <button id="btnTestRun" class="primary">开始推送</button>
+      <button id="testClose">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="modal-mask" id="modalMask" hidden>
+  <div class="modal">
+    <h2 id="modalTitle"></h2>
+    <p id="modalMsg" style="white-space:pre-line;color:var(--muted,#9aa)"></p>
+    <input id="modalInput" type="text" hidden
+      style="width:100%;box-sizing:border-box;padding:6px 8px;margin-top:6px">
+    <div class="modal-foot">
+      <button class="primary" id="modalOk">确定</button>
+      <button id="modalCancel">取消</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  "use strict";
+
+  var state = {
+    meta: {},
+    status: {},
+    groups: [],        // 主表格：{umo,label,group_id,group_name,enabled,last_pushed}
+    pickGroups: [],    // 「选择群」弹窗：{value,label,group_id,group_name,enabled,source}
+    picked: {},        // 弹窗里的勾选状态：umo -> bool
+    pickLoaded: false,
+    records: [],
+    shots: [],
+    testTarget: null
+  };
+
+  // ---------- 小工具 ----------
+
+  function byId(id) { return document.getElementById(id); }
+
+  var toastTimer = null;
+  function toast(msg, isErr) {
+    var el = byId("toast");
+    el.textContent = String(msg || "");
+    el.className = "show" + (isErr ? " err" : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.className = ""; }, 3200);
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  // 面板跑在 AstrBot 仪表盘的 iframe 里，浏览器会屏蔽 window.prompt/confirm，
+  // 所以用页内弹窗替代（否则确认框点了没反应）。
+  function _modal(opts) {
+    return new Promise(function (resolve) {
+      var mask = byId("modalMask");
+      var input = byId("modalInput");
+      byId("modalTitle").textContent = opts.title || "";
+      byId("modalMsg").textContent = opts.message || "";
+      input.hidden = !opts.prompt;
+      if (opts.prompt) { input.value = opts.value || ""; }
+      mask.hidden = false;
+      if (opts.prompt) { input.focus(); input.select(); }
+      function done(val) {
+        mask.hidden = true;
+        byId("modalOk").onclick = null;
+        byId("modalCancel").onclick = null;
+        input.onkeydown = null;
+        resolve(val);
+      }
+      byId("modalOk").onclick = function () { done(opts.prompt ? input.value : true); };
+      byId("modalCancel").onclick = function () { done(opts.prompt ? null : false); };
+      input.onkeydown = function (e) {
+        if (e.key === "Enter") { e.preventDefault(); done(input.value); }
+        else if (e.key === "Escape") { e.preventDefault(); done(null); }
+      };
+    });
+  }
+  function promptModal(title, message, value) {
+    return _modal({ prompt: true, title: title, message: message, value: value || "" });
+  }
+  function confirmModal(message, title) {
+    return _modal({ prompt: false, title: title || "确认", message: message });
+  }
+
+  function fmtBytes(n) {
+    n = Number(n) || 0;
+    if (n >= 1048576) return (n / 1048576).toFixed(1) + " MB";
+    if (n >= 1024) return (n / 1024).toFixed(0) + " KB";
+    return n + " B";
+  }
+
+  // 后端统一返回 {status, message, data}；status 不是 ok 就抛出 message。
+  function unwrap(resp) {
+    if (resp && typeof resp === "object" && "status" in resp) {
+      if (String(resp.status).toLowerCase() !== "ok") {
+        throw new Error(resp.message || "请求失败");
+      }
+      return resp.data || {};
+    }
+    return resp || {};
+  }
+
+  var _bridgeReady = null;
+  function waitForBridge(timeoutMs) {
+    if (_bridgeReady) return _bridgeReady;
+    var deadline = Date.now() + (timeoutMs || 8000);
+    _bridgeReady = new Promise(function (resolve, reject) {
+      (function poll() {
+        var bridge = window.AstrBotPluginPage;
+        if (bridge) {
+          var done = function () { resolve(bridge); };
+          if (typeof bridge.ready === "function") {
+            Promise.resolve(bridge.ready()).then(done, done);
+          } else {
+            done();
+          }
+          return;
+        }
+        if (Date.now() > deadline) {
+          _bridgeReady = null;
+          reject(new Error("面板桥接不可用，请在 AstrBot WebUI 里打开本页面"));
+          return;
+        }
+        setTimeout(poll, 32);
+      })();
+    });
+    return _bridgeReady;
+  }
+
+  function apiGet(path, params) {
+    return waitForBridge().then(function (bridge) {
+      return bridge.apiGet(path, params || {}).then(unwrap);
+    });
+  }
+
+  function apiPost(path, body) {
+    return waitForBridge().then(function (bridge) {
+      return bridge.apiPost(path, body || {}).then(unwrap);
+    });
+  }
+
+  function fail(err) { toast((err && err.message) || "操作失败", true); }
+
+  function initTheme() {
+    var params = new URLSearchParams(window.location.search);
+    var v = params.get("theme");
+    var dark = v === "dark" || params.get("isDark") === "true";
+    if (!v && params.get("isDark") === null) {
+      try {
+        dark = localStorage.getItem("astrbot_plugin_theme_is_dark") === "true";
+      } catch (e) { /* localStorage 被禁时用亮色 */ }
+    }
+    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+    return dark;
+  }
+
+  // ---------- 渲染 ----------
+
+  function renderStatus() {
+    var st = state.status || {};
+    var pill = byId("runPill");
+    var hasGroups = (st.groups || []).length > 0;
+    if (!hasGroups) {
+      pill.textContent = "还没有推送群";
+      pill.className = "pill warn";
+    } else if (st.running) {
+      pill.textContent = "定时推送运行中";
+      pill.className = "pill";
+    } else {
+      pill.textContent = "定时任务未启动";
+      pill.className = "pill off";
+    }
+    byId("stats").innerHTML = [
+      '<div class="stat"><div class="n">' + esc((st.groups || []).length) + '</div><div class="l">推送群</div></div>',
+      '<div class="stat"><div class="n">' + esc(st.last_check_text || "从未") + '</div><div class="l">上次检查</div></div>',
+      '<div class="stat"><div class="n">' + (hasGroups ? (st.next_check_in || 0) + " 秒" : "—") + '</div><div class="l">距下次检查</div></div>',
+      '<div class="stat"><div class="n">' + esc(st.shot_count || 0) + '</div><div class="l">截图缓存（' + fmtBytes(st.shot_bytes) + '）</div></div>',
+      '<div class="stat"><div class="n">' + esc(st.summary_cache_count || 0) + '</div><div class="l">摘要缓存</div></div>',
+      '<div class="stat"><div class="n">' + esc(st.record_count || 0) + '</div><div class="l">推送记录</div></div>'
+    ].join("");
+  }
+
+  function renderGroups() {
+    var tb = byId("groupBody");
+    if (!state.groups.length) {
+      tb.innerHTML = '<tr><td colspan="5" class="empty">还没有推送群：点右上角「选择群…」，' +
+        '或在群里发「天刀新闻推送 开」</td></tr>';
+      return;
+    }
+    tb.innerHTML = state.groups.map(function (g) {
+      return "<tr>" +
+        '<td><input type="checkbox" data-act="check" data-umo="' + esc(g.umo) + '"' +
+          (g.enabled ? " checked" : "") + "></td>" +
+        "<td>" + esc(g.group_name || g.label) +
+          (g.group_name ? "" : ' <span class="tag warn">无群名</span>') + "</td>" +
+        '<td class="nm">' + esc(g.group_id || "—") + "</td>" +
+        "<td>" + (g.last_pushed ? esc(g.last_pushed) : '<span class="hint">还没推过</span>') + "</td>" +
+        '<td class="acts">' +
+          '<button class="link" data-act="test" data-umo="' + esc(g.umo) + '">测试推送</button>' +
+          '<button class="link danger" data-act="reset" data-umo="' + esc(g.umo) + '">重置记录</button>' +
+        "</td></tr>";
+    }).join("");
+  }
+
+  function renderRecords() {
+    var box = byId("recordList");
+    if (!state.records.length) {
+      box.innerHTML = '<div class="empty">还没有推送记录（第一次推送成功后会出现）</div>';
+      byId("recordHint").textContent = "";
+      return;
+    }
+    box.innerHTML = state.records.map(function (r) {
+      return '<div class="list-item"><span class="nm" title="' + esc(r.title) + '">' +
+        esc(r.label) + " · " + esc(r.title || "(空)") + "</span>" +
+        (r.umo ? '<button class="link" data-act="reset-one" data-umo="' + esc(r.umo) + '">重置</button>' : "") +
+        "</div>";
+    }).join("");
+    byId("recordHint").textContent = "共 " + state.records.length + " 条";
+  }
+
+  function renderShots() {
+    var box = byId("gallery");
+    var total = 0;
+    state.shots.forEach(function (s) { total += Number(s.size) || 0; });
+    byId("shotHint").textContent = state.shots.length
+      ? "共 " + state.shots.length + " 张，占用 " + fmtBytes(total) + "（保留最近 20 张 / 7 天）"
+      : "还没有截图缓存（推送过一次公告后会有）";
+    if (!state.shots.length) { box.innerHTML = ""; return; }
+    box.innerHTML = state.shots.map(function (s) {
+      var inner = s.url
+        ? '<img src="' + esc(s.url) + '" alt="' + esc(s.name) + '" loading="lazy">'
+        : '<div class="cap">（无法预览，只有文件名）</div>';
+      return '<div class="thumb">' + inner +
+        '<div class="cap">' + esc(s.modified_text) + "<br>" + fmtBytes(s.size) + "<br>" +
+        esc(s.name) + "</div></div>";
+    }).join("");
+  }
+
+  function renderConfig() {
+    var cfg = (state.meta || {}).config || {};
+    byId("cfgShotEnabled").value = cfg.shot_enabled === false ? "0" : "1";
+    byId("cfgShotHeight").value = cfg.shot_max_height == null ? "5000" : cfg.shot_max_height;
+    byId("cfgShotQuality").value = cfg.shot_quality == null ? "88" : cfg.shot_quality;
+  }
+
+  // ---------- 数据加载 ----------
+
+  function loadMeta() {
+    return apiGet("page/meta").then(function (d) {
+      state.meta = d || {};
+      renderConfig();
+    });
+  }
+
+  function loadStatus() {
+    return apiGet("page/status").then(function (d) {
+      state.status = d || {};
+      state.groups = (d.groups || []).map(function (g) {
+        return {
+          umo: g.umo, label: g.label, group_id: g.group_id,
+          group_name: g.group_name || "", enabled: true,
+          last_pushed: g.last_pushed || ""
+        };
+      });
+      renderStatus();
+      renderGroups();
+    });
+  }
+
+  function loadRecords() {
+    return apiGet("page/records").then(function (d) {
+      state.records = d.records || [];
+      renderRecords();
+    });
+  }
+
+  function loadShots() {
+    return apiGet("page/shots").then(function (d) {
+      state.shots = d.shots || [];
+      renderShots();
+    });
+  }
+
+  function loadAll() {
+    return Promise.all([loadMeta(), loadStatus(), loadRecords(), loadShots()]);
+  }
+
+  // ---------- 保存推送群 ----------
+
+  function checkedUmOs() {
+    var boxes = byId("groupBody").querySelectorAll('input[type="checkbox"][data-act="check"]');
+    var out = [];
+    Array.prototype.forEach.call(boxes, function (box) {
+      if (box.checked) out.push(box.getAttribute("data-umo"));
+    });
+    return out;
+  }
+
+  function saveGroups() {
+    var umos = checkedUmOs();
+    var btn = byId("btnSaveGroups");
+    btn.disabled = true;
+    byId("saveHint").textContent = "保存中…";
+    apiPost("page/groups/save", { groups: umos }).then(function () {
+      byId("saveHint").textContent = "";
+      return loadAll().then(function () { toast("已保存 " + umos.length + " 个推送群"); });
+    }).catch(fail).then(function () {
+      btn.disabled = false;
+      byId("saveHint").textContent = "";
+    });
+  }
+
+  // ---------- 手动推送 ----------
+
+  function pushAll() {
+    var btn = byId("btnPushAll");
+    btn.disabled = true;
+    byId("saveHint").textContent = "正在检查公告…";
+    apiPost("page/push-now", {}).then(function (d) {
+      byId("saveHint").textContent = "";
+      toast(d.message || "已完成", d.reason !== "ok" && d.reason !== "up_to_date");
+      return loadAll();
+    }).catch(fail).then(function () {
+      btn.disabled = false;
+      byId("saveHint").textContent = "";
+    });
+  }
+
+  function openTest(umo) {
+    var row = null;
+    for (var i = 0; i < state.groups.length; i++) {
+      if (state.groups[i].umo === umo) { row = state.groups[i]; }
+    }
+    state.testTarget = umo;
+    byId("testTarget").textContent = "推送到：" + (row ? (row.group_name || row.label) : umo) +
+      "（" + umo + "）";
+    byId("testResult").textContent = "";
+    byId("testForce").checked = true;
+    byId("testMask").hidden = false;
+  }
+
+  function runTest() {
+    if (!state.testTarget) return;
+    var btn = byId("btnTestRun");
+    btn.disabled = true;
+    byId("testResult").textContent = "正在推送…";
+    apiPost("page/push-now", {
+      umo: state.testTarget,
+      force: byId("testForce").checked
+    }).then(function (d) {
+      byId("testResult").textContent = d.message || "已完成";
+      toast(d.message || "已完成", !(d.pushed || []).length);
+      return loadAll();
+    }).catch(function (err) {
+      byId("testResult").textContent = (err && err.message) || "推送失败";
+      fail(err);
+    }).then(function () { btn.disabled = false; });
+  }
+
+  // ---------- 推送记录 ----------
+
+  function resetRecords(umo) {
+    var tip = umo ? "重置这个群的推送记录？" : "清空全部推送记录？下次检查会重推最新公告。";
+    confirmModal(tip, "重置推送记录").then(function (ok) {
+      if (!ok) return;
+      apiPost("page/records/reset", umo ? { umo: umo } : {}).then(function () {
+        return loadAll().then(function () { toast("已重置"); });
+      }).catch(fail);
+    });
+  }
+
+  // ---------- 缓存 / 参数 ----------
+
+  function clearShots() {
+    confirmModal("清空截图缓存？下次推送会重新截图。", "清空截图缓存").then(function (ok) {
+      if (!ok) return;
+      apiPost("page/shots/clear", {}).then(function (d) {
+        return loadAll().then(function () { toast(d.message || "已清空"); });
+      }).catch(fail);
+    });
+  }
+
+  function clearCache() {
+    apiPost("page/cache/clear", {}).then(function (d) {
+      return loadAll().then(function () { toast(d.message || "已清空"); });
+    }).catch(fail);
+  }
+
+  function saveConfig() {
+    var btn = byId("btnSaveConfig");
+    btn.disabled = true;
+    byId("cfgHint").textContent = "保存中…";
+    apiPost("page/config/save", {
+      shot_enabled: byId("cfgShotEnabled").value === "1",
+      shot_max_height: byId("cfgShotHeight").value.trim(),
+      shot_quality: byId("cfgShotQuality").value.trim()
+    }).then(function () {
+      byId("cfgHint").textContent = "";
+      return loadMeta().then(function () { toast("参数已保存"); });
+    }).catch(fail).then(function () {
+      btn.disabled = false;
+      byId("cfgHint").textContent = "";
+    });
+  }
+
+  // ---------- 选择群弹窗 ----------
+
+  function loadPickGroups(refresh) {
+    return apiGet("page/groups", refresh ? { refresh: "1" } : {}).then(function (d) {
+      state.pickGroups = d.groups || [];
+      state.pickLoaded = true;
+      // 用当前表格的勾选状态初始化弹窗勾选（表格里没有的按后端 enabled）
+      var current = {};
+      checkedUmOs().forEach(function (u) { current[u] = true; });
+      var next = {};
+      state.pickGroups.forEach(function (g) {
+        next[g.value] = current[g.value] === undefined ? !!g.enabled : !!current[g.value];
+      });
+      state.picked = next;
+      renderPickList();
+      byId("pickHint").textContent = d.total
+        ? "共 " + d.total + " 个会话，当前选中 " + countPicked() + " 个"
+        : "还没有可选会话：点「刷新群列表」或先在群里说句话";
+      if (refresh) toast("群列表已刷新（" + (d.refreshed || 0) + " 个群有更新）");
+      return state.pickGroups;
+    });
+  }
+
+  function countPicked() {
+    var n = 0;
+    Object.keys(state.picked).forEach(function (k) { if (state.picked[k]) n++; });
+    return n;
+  }
+
+  function openPick() {
+    byId("pickSearch").value = "";
+    byId("pickMask").hidden = false;
+    renderPickList();
+    byId("pickSearch").focus();
+    if (!state.pickLoaded) loadPickGroups(false).catch(fail);
+  }
+
+  function renderPickList() {
+    var box = byId("pickList");
+    if (!state.pickLoaded) {
+      box.innerHTML = '<div class="empty">正在加载群列表…</div>';
+      return;
+    }
+    var kw = (byId("pickSearch").value || "").trim().toLowerCase();
+    var rows = state.pickGroups.filter(function (g) {
+      if (!kw) return true;
+      return (String(g.label) + " " + (g.group_name || "") + " " + (g.group_id || ""))
+        .toLowerCase().indexOf(kw) >= 0;
+    });
+    if (!rows.length) {
+      box.innerHTML = '<div class="empty">没有匹配的会话。换个词，或点「刷新群列表」。</div>';
+      return;
+    }
+    box.innerHTML = rows.map(function (g) {
+      var sub = [];
+      if (g.group_id) sub.push("群号 " + g.group_id);
+      sub.push(g.source === "pushed" ? "已在推送名单" : "机器人所见");
+      return '<label class="pick-item">' +
+        '<input type="checkbox" data-pick="' + esc(g.value) + '"' +
+          (state.picked[g.value] ? " checked" : "") + ">" +
+        '<span class="nm">' + esc(g.group_name || g.label) + "</span>" +
+        '<span class="sub">' + esc(sub.join(" · ")) + "</span></label>";
+    }).join("");
+  }
+
+  function applyPick() {
+    // 把弹窗勾选结果灌回主表格：勾上的补进列表，去掉的如果是「机器人所见」就直接移除
+    var tips = {};
+    var verified = {};
+    Object.keys(state.picked).forEach(function (umo) {
+      if (state.picked[umo]) tips[umo] = true;
+    });
+    state.pickGroups.forEach(function (g) {
+      if (state.picked[g.value]) verified[g.value] = g;
+    });
+
+    var rows = [];
+    state.groups.forEach(function (g) {
+      if (verified[g.umo]) { rows.push(g); tips[g.umo] = true; }
+    });
+    Object.keys(tips).forEach(function (umo) {
+      var exists = rows.some(function (r) { return r.umo === umo; });
+      if (exists) return;
+      var meta = verified[umo] || {};
+      rows.push({
+        umo: umo,
+        label: meta.label || umo,
+        group_id: meta.group_id || "",
+        group_name: meta.group_name || "",
+        enabled: true,
+        last_pushed: ""
+      });
+    });
+    state.groups = rows;
+    renderGroups();
+    byId("pickMask").hidden = true;
+    toast("已选 " + rows.length + " 个群，记得点「保存推送群」");
+  }
+
+  // ---------- 绑定 & 启动 ----------
+
+  function bind() {
+    byId("btnReload").addEventListener("click", function () {
+      loadAll().then(function () { toast("已刷新"); }).catch(fail);
+    });
+    byId("btnSaveGroups").addEventListener("click", saveGroups);
+    byId("btnPushAll").addEventListener("click", pushAll);
+    byId("btnResetAll").addEventListener("click", function () { resetRecords(""); });
+    byId("btnClearShots").addEventListener("click", clearShots);
+    byId("btnClearCache").addEventListener("click", clearCache);
+    byId("btnSaveConfig").addEventListener("click", saveConfig);
+    byId("btnPickGroup").addEventListener("click", openPick);
+    byId("pickClose").addEventListener("click", function () { byId("pickMask").hidden = true; });
+    byId("btnPickApply").addEventListener("click", applyPick);
+    byId("pickSearch").addEventListener("input", renderPickList);
+    byId("btnPickRefresh").addEventListener("click", function () {
+      loadPickGroups(true).catch(fail);
+    });
+    byId("pickList").addEventListener("change", function (e) {
+      var box = e.target;
+      if (!box || box.type !== "checkbox") return;
+      var umo = box.getAttribute("data-pick");
+      if (!umo) return;
+      state.picked[umo] = box.checked;
+      byId("pickHint").textContent = "共 " + state.pickGroups.length +
+        " 个会话，当前选中 " + countPicked() + " 个";
+    });
+
+    byId("groupBody").addEventListener("click", function (e) {
+      var el = e.target;
+      if (!el || el.tagName !== "BUTTON") return;
+      var act = el.getAttribute("data-act");
+      var umo = el.getAttribute("data-umo");
+      if (act === "test") openTest(umo);
+      else if (act === "reset") resetRecords(umo);
+    });
+
+    byId("recordList").addEventListener("click", function (e) {
+      var el = e.target;
+      if (!el || el.tagName !== "BUTTON" || el.getAttribute("data-act") !== "reset-one") return;
+      resetRecords(el.getAttribute("data-umo"));
+    });
+
+    byId("testClose").addEventListener("click", function () { byId("testMask").hidden = true; });
+    byId("btnTestRun").addEventListener("click", runTest);
+
+    ["pickMask", "testMask"].forEach(function (id) {
+      byId(id).addEventListener("click", function (e) {
+        if (e.target === this) this.hidden = true;
+      });
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      ["pickMask", "testMask"].forEach(function (id) { byId(id).hidden = true; });
+    });
+  }
+
+  initTheme();
+  bind();
+  byId("groupBody").innerHTML = '<tr><td colspan="5" class="empty">正在连接面板…</td></tr>';
+  waitForBridge()
+    .then(loadAll)
+    .catch(function (err) {
+      byId("groupBody").innerHTML = '<tr><td colspan="5" class="empty">' +
+        esc((err && err.message) || "加载失败") + "</td></tr>";
+      fail(err);
+    });
+})();
+</script>
+</body>
+</html>

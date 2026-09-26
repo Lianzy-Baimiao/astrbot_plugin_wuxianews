@@ -28,6 +28,13 @@ from astrbot.api.star import Context, Star
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
 from wxnews import screenshot
+from wxnews.groups import (
+    SOURCE_API,
+    GroupNameResolver,
+    parse_group_info,
+    parse_group_list,
+)
+from wxnews.page import NewsPageController
 
 NEWS_URL = "http://wuxia.qq.com/webplat/info/news_version3/5012/5013/5014/5016/m3485/list_1.shtml"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -238,7 +245,14 @@ class WuxiaNewsPlugin(Star):
         self._limit = _RateLimit(3)
         self._last_check: float = 0
         self._scheduler_task: asyncio.Task | None = None
-        screenshot.configure(_data_dir())
+        self.data_dir = _data_dir()
+        screenshot.configure(self.data_dir)
+        # 面板：群号 → 群名（OneBot 的群消息事件不带群名，只能自己攒）
+        self.groups = GroupNameResolver(self.data_dir / "groups.json")
+        self.groups.load()
+        self._group_name_tasks: dict[str, asyncio.Task] = {}
+        self.page = NewsPageController(context, self, data_dir=self.data_dir)
+        self.page.register_routes()
         logger.info("天刀公告插件初始化完成")
 
     # ---------------- 工具 ----------------
@@ -262,6 +276,16 @@ class WuxiaNewsPlugin(Star):
 
     @staticmethod
     def _group_id(event: AstrMessageEvent) -> str:
+        # 优先用公开 API get_group_id()（跨平台稳定，qq_official 也认），
+        # 取不到再退回 message_obj.group_id（老行为，保证不回归）。
+        getter = getattr(event, "get_group_id", None)
+        if callable(getter):
+            try:
+                gid = str(getter() or "")
+                if gid:
+                    return gid
+            except Exception:  # noqa: BLE001
+                pass
         try:
             return str(event.message_obj.group_id or "")
         except Exception:  # noqa: BLE001
@@ -293,20 +317,70 @@ class WuxiaNewsPlugin(Star):
                 return names
         return []
 
+    def _platform_instances(self) -> list[tuple]:
+        """当前已加载平台的 (实例id, 适配器类型名) 列表；取不到返回空。
+
+        兼容两种取法：platform_manager.platform_insts / get_insts()。
+        """
+        for get in (
+            lambda: self.context.platform_manager.platform_insts,
+            lambda: self.context.get_platform_insts(),
+            lambda: self.context.platform_manager.get_insts(),
+        ):
+            try:
+                insts = list(get() or [])
+            except Exception:  # noqa: BLE001
+                continue
+            out = []
+            for p in insts:
+                try:
+                    meta = p.meta()
+                    out.append((str(meta.id), str(meta.name)))
+                except Exception:  # noqa: BLE001
+                    continue
+            if out:
+                return out
+        return []
+
+    def _bare_id_platform(self) -> str:
+        """裸群号要挂到哪个平台**实例 id** 上。
+
+        AstrBot 的 send_message 按实例 id 匹配平台（不是适配器类型名），所以：
+        配置填了就用它（是类型名时映射到同类型实例）；留空则优先 aiocqhttp 类型的实例；
+        都探不到才回落 aiocqhttp（与旧行为一致）。
+        """
+        configured = str(self.config.get("default_platform", "") or "").strip() if hasattr(self.config, "get") else ""
+        insts = self._platform_instances()
+        ids = [pid for pid, _ in insts]
+        if configured:
+            if not ids or configured in ids:
+                return configured
+            for pid, ptype in insts:
+                if ptype == configured:
+                    return pid
+            return configured
+        for pid, ptype in insts:
+            if ptype == "aiocqhttp":
+                return pid
+        return ids[0] if ids else "aiocqhttp"
+
     def _norm_umo(self, entry) -> str:
         s = str(entry or "").strip()
         if not s:
             return ""
-        if ":" in s:
-            return s
-        plats = self._platform_names()
-        if "aiocqhttp" in plats:
-            plat = "aiocqhttp"
-        elif plats:
-            plat = plats[0]
-        else:
-            plat = "aiocqhttp"
-        return f"{plat}:{self._GROUP_MSG_TYPE}:{s}"
+        if ":" not in s:  # 裸群号 → 补默认平台实例 id
+            return f"{self._bare_id_platform()}:{self._GROUP_MSG_TYPE}:{s}"
+        # 平台段写成了适配器类型名（aiocqhttp / qq_official）时换成实例 id，否则
+        # send_message 按实例 id 匹配不到、静默丢消息；认不出来的原样返回。
+        parts = s.split(":")
+        plat = parts[0].strip()
+        insts = self._platform_instances()
+        if plat and not any(plat == pid for pid, _ in insts):
+            for pid, ptype in insts:
+                if ptype == plat:
+                    parts[0] = pid
+                    return ":".join(parts)
+        return s
 
     def _push_groups(self) -> list[str]:
         out = []
@@ -330,6 +404,149 @@ class WuxiaNewsPlugin(Star):
         else:
             chain.file_image(url)
         await self.context.send_message(umo, chain)
+
+    # ---------------- 面板：群名与群列表 ----------------
+
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def on_any_message(self, event: AstrMessageEvent):
+        """任何消息都顺手记一下群名（面板要按群名选群）。不产出任何回复。"""
+        try:
+            self._remember_group(event)
+        except Exception as e:  # noqa: BLE001
+            logger.debug("记录群名失败: %s", e)
+
+    @staticmethod
+    def _event_group_name(event: AstrMessageEvent) -> str:
+        """事件自带的群名（Telegram / Discord / QQ 官方等平台有，OneBot 没有）。"""
+        group = getattr(getattr(event, "message_obj", None), "group", None)
+        return str(getattr(group, "group_name", "") or "").strip()
+
+    @staticmethod
+    def _event_platform_id(event: AstrMessageEvent) -> str:
+        getter = getattr(event, "get_platform_id", None)
+        if callable(getter):
+            try:
+                return str(getter() or "")
+            except Exception:  # noqa: BLE001
+                pass
+        meta = getattr(event, "platform_meta", None)
+        return str(getattr(meta, "id", "") or "")
+
+    def _remember_group(self, event: AstrMessageEvent) -> None:
+        umo = str(getattr(event, "unified_msg_origin", "") or "")
+        if not umo:
+            return
+        gid = self._group_id(event)
+        self.groups.remember(
+            umo,
+            group_id=gid,
+            group_name=self._event_group_name(event),
+            platform_id=self._event_platform_id(event),
+        )
+        if gid and not self.groups.name_of(umo):
+            self._schedule_group_name_lookup(event, umo, gid)
+
+    def _schedule_group_name_lookup(self, event: AstrMessageEvent, umo: str, gid: str) -> None:
+        """首次见到某个群时后台问一次 get_group_info（不阻塞消息处理）。"""
+        if umo in self._group_name_tasks:
+            return
+        client = getattr(event, "bot", None) or getattr(event, "client", None)
+        if client is None or not callable(getattr(client, "call_action", None)):
+            return
+        try:
+            task = asyncio.create_task(
+                self._learn_group_name(client, umo, gid, self._event_platform_id(event))
+            )
+        except RuntimeError:  # 没有运行中的事件循环
+            return
+        self._group_name_tasks[umo] = task
+        task.add_done_callback(lambda _t, key=umo: self._group_name_tasks.pop(key, None))
+
+    async def _learn_group_name(self, client, umo: str, gid: str, platform_id: str) -> None:
+        try:
+            result = await client.call_action(
+                "get_group_info", group_id=int(gid) if str(gid).isdigit() else gid
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.debug("查询群 %s 名称失败: %s", gid, e)
+            return
+        info = parse_group_info(result)
+        name = str(info.get("group_name") or "").strip()
+        if not name:
+            return
+        self.groups.remember(
+            umo,
+            group_id=gid or str(info.get("group_id") or ""),
+            group_name=name,
+            platform_id=platform_id,
+            member_count=info.get("member_count"),
+            source=SOURCE_API,
+        )
+
+    @staticmethod
+    def _platform_instance_id(inst) -> str:
+        meta = getattr(inst, "meta", None)
+        if callable(meta):
+            try:
+                return str(getattr(meta(), "id", "") or "")
+            except Exception:  # noqa: BLE001
+                pass
+        config = getattr(inst, "config", None)
+        if isinstance(config, dict):
+            return str(config.get("id") or "")
+        return ""
+
+    def _platform_clients(self):
+        """列出 (平台实例 id, 客户端对象)；取不到平台管理器时一个都不返回。"""
+        manager = getattr(self.context, "platform_manager", None)
+        getter = getattr(manager, "get_insts", None)
+        if not callable(getter):
+            return
+        try:
+            insts = list(getter() or [])
+        except Exception as e:  # noqa: BLE001
+            logger.debug("取平台实例失败: %s", e)
+            return
+        for inst in insts:
+            client = None
+            get_client = getattr(inst, "get_client", None)
+            if callable(get_client):
+                try:
+                    client = get_client()
+                except Exception:  # noqa: BLE001
+                    client = None
+            if client is None:
+                client = getattr(inst, "bot", None) or getattr(inst, "client", None)
+            if client is not None:
+                yield self._platform_instance_id(inst), client
+
+    async def refresh_group_names(self, force: bool = False, interval: int = 300) -> int:
+        """去平台要一遍群列表（OneBot get_group_list）补齐群名，返回有变化的群数。"""
+        if not force and not self.groups.needs_refresh(interval):
+            return 0
+        changed = 0
+        for platform_id, client in self._platform_clients():
+            action = getattr(client, "call_action", None)
+            if not callable(action):
+                continue
+            try:
+                result = await action("get_group_list")
+            except Exception as e:  # noqa: BLE001
+                logger.debug("平台 %s 取群列表失败: %s", platform_id or "?", e)
+                continue
+            changed += self.groups.merge_api_groups(platform_id, parse_group_list(result))
+        self.groups.mark_refreshed()
+        return changed
+
+    async def save_config_now(self) -> None:
+        """面板改完配置后落盘（同步 / 异步两套 API 都兼容）。"""
+        saver = getattr(self.config, "save_config_async", None)
+        if callable(saver):
+            await saver()
+            return
+        saver = getattr(self.config, "save_config", None)
+        if callable(saver):
+            saver()
 
     # ---------------- 指令 ----------------
 
@@ -560,24 +777,66 @@ class WuxiaNewsPlugin(Star):
             await asyncio.sleep(30)
 
     async def _tick(self):
-        groups = self._push_groups()
-        if not groups or time.time() - self._last_check < 300:
+        if not self._push_groups() or time.time() - self._last_check < 300:
             return
         self._last_check = time.time()
-        # 一次抓取，多群复用：先取最新公告，找出所有需要推送的群
+        await self._push_round()
+
+    async def _push_round(self, target: str | None = None, force: bool = False) -> dict:
+        """跑一轮推送：面板「立刻检查并推送」与定时任务共用同一段逻辑。
+
+        target 指定只推一个群；force=True 忽略去重记录重发（面板「测试推送」用）。
+        返回 {reason, title, pushed, skipped, message}，pushed/skipped 是 umo 列表。
+        """
+        if target:
+            groups = [self._norm_umo(target)]
+        else:
+            groups = self._push_groups()
+        groups = [u for u in groups if u]
+        if not groups:
+            return {
+                "reason": "no_groups",
+                "title": "",
+                "pushed": [],
+                "skipped": [],
+                "message": "还没有设置推送群，先在面板里勾选或群里发「天刀新闻推送 开」",
+            }
         try:
             items = await fetch_news_list()
             if not items:
-                return
+                return {
+                    "reason": "no_list",
+                    "title": "",
+                    "pushed": [],
+                    "skipped": [],
+                    "message": "公告列表为空（数据源没返回内容）",
+                }
             it = pick_latest(items)
         except Exception as e:  # noqa: BLE001
             logger.warning("定时公告列表获取失败: %s", e)
-            return
-        targets = [
-            umo for umo in groups if last_pushed(f"push:{umo}") != it["title"]
-        ]
-        if not targets:
-            return
+            return {
+                "reason": "fetch_failed",
+                "title": "",
+                "pushed": [],
+                "skipped": [],
+                "message": f"公告列表获取失败：{e}",
+            }
+
+        need = (
+            groups
+            if force
+            else [umo for umo in groups if last_pushed(f"push:{umo}") != it["title"]]
+        )
+        skipped = [umo for umo in groups if umo not in need]
+        if not need:
+            return {
+                "reason": "up_to_date",
+                "title": it["title"],
+                "pushed": [],
+                "skipped": skipped,
+                "message": f"最新公告已经推过了：{it['title']}",
+            }
+
         # 摘要/截图只生成一次（内部有缓存，多群共用同一文件）
         summary = await fetch_summary_cached(it["url"])
         text = (
@@ -588,14 +847,31 @@ class WuxiaNewsPlugin(Star):
             text += f"\n\n{summary}"
         img, hint = await self._news_image(it, summary)
         text += hint
-        for umo in targets:
+        pushed: list[str] = []
+        for umo in need:
             try:
                 mark_pushed(f"push:{umo}", it["title"])
                 await self._send_text_to(umo, text)
                 if img:
                     await self._send_img_to(umo, img)
+                pushed.append(umo)
             except Exception as e:  # noqa: BLE001
                 logger.warning("定时公告推送失败 %s: %s", umo, e)
+        message = f"已推送「{it['title']}」到 {len(pushed)} 个群"
+        if skipped:
+            message += f"，{len(skipped)} 个群已是最新（跳过）"
+        return {
+            "reason": "ok",
+            "title": it["title"],
+            "pushed": pushed,
+            "skipped": skipped,
+            "message": message,
+        }
+
+    async def push_now(self, target: str | None = None, *, force: bool = False) -> dict:
+        """面板「立刻检查并推送」：忽略 5 分钟节流跑一轮。"""
+        self._last_check = time.time()
+        return await self._push_round(target, force=force)
 
     async def terminate(self):
         if self._scheduler_task:
