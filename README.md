@@ -4,6 +4,8 @@
 
 作者：lianzy
 
+> 更新日志见 [Releases](https://github.com/Lianzy-Baimiao/astrbot_plugin_wuxianews/releases)。
+
 ## 指令（裸词即可触发，/ 前缀可省略）
 
 所有指令统一以 `天刀` 开头，避免与其它插件的裸词指令冲突。
