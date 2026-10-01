@@ -2,7 +2,7 @@ name: astrbot_plugin_wuxianews
 display_name: 天刀公告
 desc: 天涯明月刀公告推送：天刀公告列表、天刀最新公告、定时推送（每 5 分钟检查，有更新自动推送）。
 short_desc: 天刀公告查询与自动推送
-version: v1.3.5
+version: v1.3.6
 author: lianzy
 repo: https://github.com/Lianzy-Baimiao/astrbot_plugin_wuxianews
 # 插件 WebUI 自定义页面（Plugin Pages）能力在 AstrBot v4.24.1 正式引入

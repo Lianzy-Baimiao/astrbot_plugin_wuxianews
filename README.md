@@ -6,6 +6,27 @@
 
 > 更新日志见 [Releases](https://github.com/Lianzy-Baimiao/astrbot_plugin_wuxianews/releases)。
 
+## Web 面板首页预览
+
+支持右上角一键切换 **浅色 / 深色**，也可在「界面外观」中选择跟随 AstrBot；未提供宿主主题时默认浅色。主题及紧凑布局偏好保存在当前浏览器，手机窄屏下自动调整布局，宽表格可横向滚动。
+
+- 页面导航：总览、推送群、推送记录、公告图设置、截图缓存与界面外观。
+- 统一统计卡片标签与数值排版、复选框及筛选工具栏对齐。
+- 使用本地 HTML / CSS / JavaScript，无需前端构建或外部图标字体；通过 AstrBot Plugin Pages 桥接访问后端。
+
+**浅色首页**
+
+![Web 面板浅色首页](docs/images/web-panel-light.png)
+
+<details>
+<summary>查看深色首页</summary>
+
+![Web 面板深色首页](docs/images/web-panel-dark.png)
+
+</details>
+
+> 预览图来自本地浏览器测试，使用模拟数据，不代表真实机器人运行状态。更新日志见各仓库 Releases。
+
 ## 指令（裸词即可触发，/ 前缀可省略）
 
 所有指令统一以 `天刀` 开头，避免与其它插件的裸词指令冲突。
@@ -71,3 +92,9 @@ python tests/test_wuxianews_main.py  # main.py 接线与推送流程
 ## License
 
 MIT
+
+### Web 面板更新
+
+- 独立工作台布局，提供浅色 / 深色切换、主题记忆及窄屏适配。
+- 统一运行速览标签与数值的对齐，移除标签前的小方块装饰。
+- 统一复选框与筛选工具栏对齐，保留原有业务接口。
