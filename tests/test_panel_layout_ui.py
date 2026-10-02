@@ -74,6 +74,21 @@ class PanelLayoutTests(unittest.TestCase):
    self.assertEqual(p.evaluate('window.lastPost.body.keyword'),'hello')
    self.assertEqual(p.evaluate('window.lastPost.body.format'),'text')
 
+ def test_home_uses_client_icon(self):
+  p=self.page
+  icon=p.locator('.hero-art img.art-client-icon')
+  expect(icon).to_have_count(1)
+  self.assertTrue(icon.get_attribute('src').startswith('./wuxia-client-icon.png'))
+  for theme in ['light','dark']:
+   if p.locator('html').get_attribute('data-theme')!=theme:p.locator('#panelTheme').click()
+   expect(icon).to_be_visible()
+   p.wait_for_function("() => {const icon=document.querySelector('.hero-art img');return icon.complete && icon.naturalWidth===128 && icon.naturalHeight===128;}")
+   self.assertEqual(p.locator('.hero-art .art-symbol').count(),0)
+   self.assertEqual(icon.evaluate('img=>getComputedStyle(img).opacity'),'1')
+  p.set_viewport_size({'width':390,'height':844})
+  expect(p.locator('.hero-art')).to_be_hidden()
+  self.assertTrue(p.evaluate('document.documentElement.scrollWidth <= innerWidth+1'))
+
  def test_routes_and_alignment(self):
   p=self.page
   for width in [1600,1440,768,390]:

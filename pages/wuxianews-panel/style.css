@@ -127,3 +127,6 @@ label:has(> input[type="checkbox"]) { display: inline-flex; align-items: center;
 .row > button:not(.link), .row > .field > input:not([type="checkbox"]), .row > .field > select { min-height: 40px; height: 40px; }
 
 .stats .stat .n { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; font-variant-numeric: tabular-nums; }
+
+/* Original transparent client icon, centered at its native resolution. */
+.art-client-icon { position: absolute; inset: 0; margin: auto; width: 128px; height: 128px; object-fit: contain; }

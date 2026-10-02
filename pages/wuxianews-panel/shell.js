@@ -1,7 +1,7 @@
 /* Standalone panel shell. Local resources only; no framework or external assets. */
 (function () {
   "use strict";
-  var c = {"title": "天刀公告", "brand": "TIANDAO / NEWSROOM", "mark": "刀", "hero": "江湖新讯，\n一页尽知。", "sub": "从官网公告到群内提醒，管理你的天涯明月刀资讯推送。", "color": "jade", "version": "v1.3.6", "old": "v1.3.5", "views": [["groups", "推送群", "DELIVERY", [0]], ["records", "推送记录", "HISTORY", [1]], ["settings", "公告图设置", "RENDER SETTINGS", [2]], ["cache", "截图缓存", "IMAGE ARCHIVE", [3]]]};
+  var c = {"title": "天刀公告", "brand": "TIANDAO / NEWSROOM", "mark": "刀", "hero": "江湖新讯，\n一页尽知。", "sub": "从官网公告到群内提醒，管理你的天涯明月刀资讯推送。", "color": "jade", "version": "v1.3.7", "old": "v1.3.6", "views": [["groups", "推送群", "DELIVERY", [0]], ["records", "推送记录", "HISTORY", [1]], ["settings", "公告图设置", "RENDER SETTINGS", [2]], ["cache", "截图缓存", "IMAGE ARCHIVE", [3]]]};
   var root = document.documentElement;
   var wrap = document.querySelector('.wrap');
   var bar = wrap.querySelector('.topbar');
@@ -67,7 +67,7 @@
   copy.append(el('span','eyebrow',c.brand),el('h2','',c.hero),el('p','',c.sub));
   copy.append(button('进入'+c.views[0][1]+'  ↗',function(){location.hash=c.views[0][0];},'primary'));
   var art=el('div','hero-art'); art.setAttribute('aria-hidden','true');
-  art.append(el('span','art-orbit'),el('span','art-symbol',c.mark),el('span','art-caption', c.color==='pink'?'ON AIR / STAY CONNECTED':c.color==='jade'?'山河如故 · 江湖常新':'IF MESSAGE → REPLY'));
+  art.append(el('span','art-orbit'),document.getElementById('heroArtTemplate').content.cloneNode(true),el('span','art-caption', c.color==='pink'?'ON AIR / STAY CONNECTED':c.color==='jade'?'山河如故 · 江湖常新':'IF MESSAGE → REPLY'));
   hero.append(copy,art); overview.append(hero);
   var statsTitle=el('div','section-heading'); statsTitle.append(el('h2','','运行速览'),el('span','hint','数据以最近一次读取为准')); overview.append(statsTitle,stats);
   var shortcuts=el('div','shortcuts');
